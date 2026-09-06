@@ -1,3 +1,5 @@
+export type BlogPostStatus = "pending" | "approved" | "rejected";
+
 export interface BlogPost {
   id: string;
   title: string;
@@ -11,6 +13,8 @@ export interface BlogPost {
   cover_image?: string | null;
   read_time_minutes: number;
   likes_count: number;
+  status: BlogPostStatus;
+  admin_note?: string | null;
   created_at: string;
   updated_at: string;
 }

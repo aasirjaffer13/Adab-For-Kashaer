@@ -1,5 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
-import type { BlogPost } from "@/types/blog";
+import type { BlogPost, BlogPostStatus } from "@/types/blog";
 
 const STORAGE_KEY = "adab_community_blogs_v1";
 const LIKED_POSTS_KEY = "adab_liked_blogs_v1";
@@ -16,6 +16,7 @@ export const INITIAL_BLOG_POSTS: BlogPost[] = [
     author_name: "Tariq Al-Andalusi",
     read_time_minutes: 5,
     likes_count: 34,
+    status: "approved",
     created_at: "2026-08-28T14:00:00.000Z",
     updated_at: "2026-08-28T14:00:00.000Z",
     content: `## The Modern Marketplace of the Eyes
@@ -48,6 +49,7 @@ Notice the divine wisdom in the sequencing: Allah subhanahu wa ta'ala addresses 
     author_name: "Maryam K.",
     read_time_minutes: 6,
     likes_count: 52,
+    status: "approved",
     created_at: "2026-08-30T10:30:00.000Z",
     updated_at: "2026-08-30T10:30:00.000Z",
     content: `## When Sincerity Becomes Spectacle
@@ -83,6 +85,7 @@ If we cannot deliver our advice with tears of concern and quiet dignity, the mos
     author_name: "Zayd Bilal",
     read_time_minutes: 4,
     likes_count: 27,
+    status: "approved",
     created_at: "2026-09-01T18:15:00.000Z",
     updated_at: "2026-09-01T18:15:00.000Z",
     content: `## The Economy of Self-Promotion
@@ -112,6 +115,7 @@ In online debates, how often do we refuse to concede a valid point made by someo
     author_name: "Fatima Noor",
     read_time_minutes: 5,
     likes_count: 45,
+    status: "approved",
     created_at: "2026-09-03T09:00:00.000Z",
     updated_at: "2026-09-03T09:00:00.000Z",
     content: `## Building Safe Harbors
@@ -141,7 +145,13 @@ function getStoredBlogs(): BlogPost[] {
       return INITIAL_BLOG_POSTS;
     }
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) && parsed.length > 0 ? parsed : INITIAL_BLOG_POSTS;
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      return parsed.map((item: BlogPost) => ({
+        ...item,
+        status: item.status || "approved",
+      }));
+    }
+    return INITIAL_BLOG_POSTS;
   } catch {
     return INITIAL_BLOG_POSTS;
   }
@@ -189,7 +199,12 @@ export function saveLikedPostId(id: string): boolean {
 interface DynamicSupabaseClient {
   from: (table: string) => {
     select: (cols?: string) => {
-      order: (col: string, opts?: { ascending: boolean }) => Promise<{ data: unknown; error: unknown }>;
+      order: (col: string, opts?: { ascending: boolean }) => {
+        eq: (col: string, val: unknown) => Promise<{ data: unknown; error: unknown }>;
+      } & Promise<{ data: unknown; error: unknown }>;
+      eq: (col: string, val: unknown) => {
+        order: (col: string, opts?: { ascending: boolean }) => Promise<{ data: unknown; error: unknown }>;
+      } & Promise<{ data: unknown; error: unknown }>;
       or: (condition: string) => {
         single: () => Promise<{ data: unknown; error: unknown }>;
       };
@@ -199,6 +214,13 @@ interface DynamicSupabaseClient {
         single: () => Promise<{ data: unknown; error: unknown }>;
       };
     };
+    update: (values: unknown) => {
+      eq: (col: string, val: unknown) => {
+        select: () => {
+          single: () => Promise<{ data: unknown; error: unknown }>;
+        };
+      } & Promise<{ data: unknown; error: unknown }>;
+    };
   };
   rpc: (fn: string, args?: Record<string, unknown>) => Promise<{ data: unknown; error: unknown }>;
 }
@@ -206,9 +228,54 @@ interface DynamicSupabaseClient {
 const db = supabase as unknown as DynamicSupabaseClient;
 
 /**
- * Fetch all blog posts. Tries Supabase first; if table doesn't exist or errors, falls back seamlessly to local store.
+ * Fetch all published (approved) blog posts for public view.
+ * Tries Supabase first; if table doesn't exist or errors, falls back seamlessly to local store.
  */
 export async function getBlogPosts(): Promise<BlogPost[]> {
+  try {
+    const { data, error } = await db
+      .from("blogs")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (!error && Array.isArray(data) && data.length > 0) {
+      const posts = data as unknown as BlogPost[];
+      return posts.filter((p) => p.status === "approved");
+    }
+  } catch {
+    // Supabase table not created yet; fallback to local storage
+  }
+
+  const posts = getStoredBlogs();
+  return posts.filter((p) => p.status === "approved");
+}
+
+/**
+ * Fetch all posts pending moderation.
+ */
+export async function getPendingPosts(): Promise<BlogPost[]> {
+  try {
+    const { data, error } = await db
+      .from("blogs")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (!error && Array.isArray(data) && data.length > 0) {
+      const posts = data as unknown as BlogPost[];
+      return posts.filter((p) => p.status === "pending");
+    }
+  } catch {
+    // Fallback to local storage
+  }
+
+  const posts = getStoredBlogs();
+  return posts.filter((p) => p.status === "pending");
+}
+
+/**
+ * Fetch all posts regardless of status for admin management.
+ */
+export async function getAllPostsForAdmin(): Promise<BlogPost[]> {
   try {
     const { data, error } = await db
       .from("blogs")
@@ -219,10 +286,55 @@ export async function getBlogPosts(): Promise<BlogPost[]> {
       return data as unknown as BlogPost[];
     }
   } catch {
-    // Supabase table not created yet; fallback to local storage
+    // Fallback to local storage
   }
 
   return getStoredBlogs();
+}
+
+/**
+ * Update the moderation status of a post (approve or reject).
+ */
+export async function updatePostStatus(
+  id: string,
+  status: BlogPostStatus,
+  adminNote?: string
+): Promise<BlogPost | null> {
+  const posts = getStoredBlogs();
+  const index = posts.findIndex((p) => p.id === id || p.slug === id);
+
+  let updatedPost: BlogPost | null = null;
+  if (index !== -1) {
+    posts[index] = {
+      ...posts[index],
+      status,
+      admin_note: adminNote !== undefined ? adminNote : posts[index].admin_note,
+      updated_at: new Date().toISOString(),
+    };
+    updatedPost = posts[index];
+    setStoredBlogs(posts);
+  }
+
+  try {
+    const { data, error } = await db
+      .from("blogs")
+      .update({
+        status,
+        admin_note: adminNote || null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", id)
+      .select()
+      .single();
+
+    if (!error && data) {
+      return data as unknown as BlogPost;
+    }
+  } catch {
+    // Ignore database error if using local storage fallback
+  }
+
+  return updatedPost;
 }
 
 /**
@@ -248,7 +360,7 @@ export async function getBlogPostById(idOrSlug: string): Promise<BlogPost | null
 }
 
 /**
- * Create a new blog post. Works for anyone (guests, pseudonyms, or logged-in users).
+ * Create a new blog post. Defaults to "pending" status for admin review.
  */
 export async function createBlogPost(params: {
   title: string;
@@ -285,6 +397,7 @@ export async function createBlogPost(params: {
     cover_image: params.cover_image || null,
     read_time_minutes: estimatedReadTime,
     likes_count: 0,
+    status: "pending",
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   };

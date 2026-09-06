@@ -377,6 +377,9 @@ function LandingPage() {
             <Link to="/blog/new" className="transition-colors hover:text-foreground">
               Write a reflection
             </Link>
+            <Link to="/admin" className="transition-colors hover:text-foreground">
+              Moderation
+            </Link>
             <a href="/dashboard" className="transition-colors hover:text-foreground">
               Open Inspo
             </a>

@@ -79,7 +79,7 @@ function NewBlogPage() {
           .slice(0, 160)
           .trim() + "...";
 
-      const newPost = await createBlogPost({
+      await createBlogPost({
         title,
         excerpt: generatedExcerpt,
         content,
@@ -88,14 +88,16 @@ function NewBlogPage() {
         tags,
       });
 
-      toast.success("Reflection published successfully!");
+      toast.success(
+        "Reflection submitted for review! Once approved by a moderator, it will appear publicly.",
+        { duration: 6000 }
+      );
       navigate({
-        to: "/blog/$blogId",
-        params: { blogId: newPost.id },
+        to: "/blog",
       });
     } catch (err: unknown) {
       console.error(err);
-      toast.error("Failed to publish reflection. Please try again.");
+      toast.error("Failed to submit reflection. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
@@ -151,11 +153,11 @@ function NewBlogPage() {
           <div className="flex items-start gap-3">
             <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
             <div className="text-sm leading-relaxed text-muted-foreground">
-              <p className="font-semibold text-foreground">Writing with Adab</p>
+              <p className="font-semibold text-foreground">Writing with Adab & Moderation</p>
               <p className="mt-1">
-                Adab is an open community space. Speak truth with gentleness (*qawlan layyina*),
-                avoid backbiting and personal insults, and verify knowledge before quoting scripture.
-                Your reflection will be visible to all visitors.
+                Adab is a reflective community space. Speak truth with gentleness (*qawlan layyina*),
+                avoid slander and backbiting, and verify quotes. Every submission is reviewed by moderators
+                before being published publicly.
               </p>
             </div>
           </div>
@@ -331,7 +333,7 @@ function NewBlogPage() {
                 className="inline-flex items-center gap-2 rounded-md bg-primary px-6 py-2.5 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 disabled:opacity-50"
               >
                 <Send className="h-4 w-4" />
-                <span>{isSubmitting ? "Publishing…" : "Publish Reflection"}</span>
+                <span>{isSubmitting ? "Submitting…" : "Submit for Review"}</span>
               </button>
             </div>
           </form>
