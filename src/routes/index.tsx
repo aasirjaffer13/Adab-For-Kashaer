@@ -2,6 +2,8 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
 import { ArrowRight, BookOpen, Check, Heart, MessageCircle, Shield, PenSquare, Sparkles } from "lucide-react";
 
+const ADMIN_SESSION_KEY = "adab_admin_authenticated";
+
 export const Route = createFileRoute("/")({
   component: LandingPage,
   head: () => ({
@@ -43,12 +45,23 @@ const SECTIONS = [
 
 function LandingPage() {
   const [scrolled, setScrolled] = useState(false);
+  const [isAdmin, setIsAdmin] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return sessionStorage.getItem(ADMIN_SESSION_KEY) === "true";
+  });
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8);
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
+    const onStorage = () => {
+      setIsAdmin(sessionStorage.getItem(ADMIN_SESSION_KEY) === "true");
+    };
+    window.addEventListener("storage", onStorage);
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("storage", onStorage);
+    };
   }, []);
 
   return (
@@ -286,9 +299,14 @@ function LandingPage() {
                 href="https://www.islamicity.org"
               />
               <ResourceCard
-                title="Crash Override Network"
-                description="Digital safety resources and guides for online harassment."
-                href="https://www.crashoverridenetwork.com"
+                title="Seekers Guidance"
+                description="Authentic courses, answers, and articles from qualified scholars on Islamic ethics and adab."
+                href="https://seekersguidance.org"
+              />
+              <ResourceCard
+                title="Sunnah.com"
+                description="Searchable collection of classical hadith collections with grading and references."
+                href="https://sunnah.com"
               />
             </div>
             <p className="mt-10 text-center text-sm text-muted-foreground">
@@ -377,9 +395,11 @@ function LandingPage() {
             <Link to="/blog/new" className="transition-colors hover:text-foreground">
               Write a reflection
             </Link>
-            <Link to="/admin" className="transition-colors hover:text-foreground">
-              Moderation
-            </Link>
+            {isAdmin && (
+              <Link to="/admin" className="transition-colors hover:text-foreground">
+                Moderation
+              </Link>
+            )}
             <a href="/dashboard" className="transition-colors hover:text-foreground">
               Open Inspo
             </a>
