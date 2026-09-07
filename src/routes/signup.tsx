@@ -24,14 +24,16 @@ function SignupPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
-      options: { emailRedirectTo: window.location.origin + "/dashboard" },
+      options: { emailRedirectTo: window.location.origin + "/auth/confirm?redirect=/dashboard" },
     });
     setLoading(false);
     if (error) {
       toast.error(error.message);
+    } else if (data.session) {
+      window.location.href = "/dashboard";
     } else {
       setSent(true);
     }

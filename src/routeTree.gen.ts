@@ -17,6 +17,7 @@ import { Route as BlogIndexRouteImport } from './routes/blog.index'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
 import { Route as BlogNewRouteImport } from './routes/blog.new'
 import { Route as BlogBlogIdRouteImport } from './routes/blog.$blogId'
+import { Route as AuthConfirmRouteImport } from './routes/auth.confirm'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedBoardsBoardIdRouteImport } from './routes/_authenticated/boards.$boardId'
 
@@ -59,6 +60,11 @@ const BlogBlogIdRoute = BlogBlogIdRouteImport.update({
   path: '/blog/$blogId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthConfirmRoute = AuthConfirmRouteImport.update({
+  id: '/auth/confirm',
+  path: '/auth/confirm',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
@@ -76,6 +82,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/signup': typeof SignupRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/auth/confirm': typeof AuthConfirmRoute
   '/blog/$blogId': typeof BlogBlogIdRoute
   '/blog/new': typeof BlogNewRoute
   '/admin/': typeof AdminIndexRoute
@@ -87,6 +94,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/signup': typeof SignupRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/auth/confirm': typeof AuthConfirmRoute
   '/blog/$blogId': typeof BlogBlogIdRoute
   '/blog/new': typeof BlogNewRoute
   '/admin': typeof AdminIndexRoute
@@ -100,6 +108,7 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/signup': typeof SignupRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
+  '/auth/confirm': typeof AuthConfirmRoute
   '/blog/$blogId': typeof BlogBlogIdRoute
   '/blog/new': typeof BlogNewRoute
   '/admin/': typeof AdminIndexRoute
@@ -113,6 +122,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/signup'
     | '/dashboard'
+    | '/auth/confirm'
     | '/blog/$blogId'
     | '/blog/new'
     | '/admin/'
@@ -124,6 +134,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/signup'
     | '/dashboard'
+    | '/auth/confirm'
     | '/blog/$blogId'
     | '/blog/new'
     | '/admin'
@@ -136,6 +147,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/signup'
     | '/_authenticated/dashboard'
+    | '/auth/confirm'
     | '/blog/$blogId'
     | '/blog/new'
     | '/admin/'
@@ -148,6 +160,7 @@ export interface RootRouteChildren {
   AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
   LoginRoute: typeof LoginRoute
   SignupRoute: typeof SignupRoute
+  AuthConfirmRoute: typeof AuthConfirmRoute
   BlogBlogIdRoute: typeof BlogBlogIdRoute
   BlogNewRoute: typeof BlogNewRoute
   AdminIndexRoute: typeof AdminIndexRoute
@@ -212,6 +225,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof BlogBlogIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/auth/confirm': {
+      id: '/auth/confirm'
+      path: '/auth/confirm'
+      fullPath: '/auth/confirm'
+      preLoaderRoute: typeof AuthConfirmRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_authenticated/dashboard': {
       id: '/_authenticated/dashboard'
       path: '/dashboard'
@@ -248,6 +268,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
   LoginRoute: LoginRoute,
   SignupRoute: SignupRoute,
+  AuthConfirmRoute: AuthConfirmRoute,
   BlogBlogIdRoute: BlogBlogIdRoute,
   BlogNewRoute: BlogNewRoute,
   AdminIndexRoute: AdminIndexRoute,
