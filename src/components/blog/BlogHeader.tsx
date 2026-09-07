@@ -54,7 +54,8 @@ export function BlogHeader({ backTo, backLabel, showWriteButton = true }: Props)
 
           {showWriteButton && (
             <Link
-              to="/blog/new"
+              to={isAuthenticated ? "/blog/new" : "/login"}
+              search={isAuthenticated ? undefined : { redirect: "/blog/new" }}
               className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3.5 py-1.5 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
             >
               <PenSquare className="h-4 w-4" />

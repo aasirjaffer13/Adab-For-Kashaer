@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
+import { createFileRoute, useNavigate, Link, redirect } from "@tanstack/react-router";
 import { useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { createBlogPost } from "@/services/blog-service";
@@ -18,6 +18,11 @@ import {
 } from "lucide-react";
 
 export const Route = createFileRoute("/blog/new")({
+  beforeLoad: ({ context }) => {
+    if (!context.auth.isAuthenticated) {
+      throw redirect({ to: "/login", search: { redirect: "/blog/new" } });
+    }
+  },
   component: NewBlogPage,
   head: () => ({
     meta: [

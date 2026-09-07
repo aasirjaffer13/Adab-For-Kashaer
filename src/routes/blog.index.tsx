@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useAuth } from "@/hooks/use-auth";
 import { getBlogPosts, getLikedPostIds } from "@/services/blog-service";
 import { BLOG_CATEGORIES, type BlogPost } from "@/types/blog";
 import { BlogHeader } from "@/components/blog/BlogHeader";
@@ -22,6 +23,7 @@ export const Route = createFileRoute("/blog/")({
 });
 
 function BlogIndexPage() {
+  const { isAuthenticated } = useAuth();
   const [selectedCategory, setSelectedCategory] = useState<string>("All");
   const [searchQuery, setSearchQuery] = useState("");
   const [likedIds, setLikedIds] = useState<string[]>([]);
@@ -78,7 +80,8 @@ function BlogIndexPage() {
 
           <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
             <Link
-              to="/blog/new"
+              to={isAuthenticated ? "/blog/new" : "/login"}
+              search={isAuthenticated ? undefined : { redirect: "/blog/new" }}
               className="inline-flex items-center gap-2 rounded-md bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
             >
               <PenSquare className="h-4 w-4" />
@@ -235,7 +238,8 @@ function BlogIndexPage() {
                 </button>
               )}
               <Link
-                to="/blog/new"
+                to={isAuthenticated ? "/blog/new" : "/login"}
+                search={isAuthenticated ? undefined : { redirect: "/blog/new" }}
                 className="inline-flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground shadow-sm hover:bg-primary/90"
               >
                 <PenSquare className="h-3.5 w-3.5" />
@@ -256,7 +260,8 @@ function BlogIndexPage() {
           </p>
           <div className="mt-6">
             <Link
-              to="/blog/new"
+              to={isAuthenticated ? "/blog/new" : "/login"}
+              search={isAuthenticated ? undefined : { redirect: "/blog/new" }}
               className="inline-flex items-center gap-2 rounded-md bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
             >
               <PenSquare className="h-4 w-4" />
