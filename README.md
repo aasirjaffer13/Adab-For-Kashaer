@@ -86,6 +86,27 @@ Everything is documented inline in [`.env.example`](./.env.example).
 
 > `.env` is gitignored. Only `.env.example` (with placeholders) is committed.
 
+### Google sign-in
+
+"Continue with Google" (on `/login` and `/signup`) goes straight to Supabase's
+`/auth/v1/authorize` via `src/lib/oauth.ts`. It used to use Lovable's
+`/~oauth/initiate` broker, which only exists on Lovable hosting and 404s
+everywhere else.
+
+For it to work:
+
+1. **Supabase → Authentication → Providers → Google** — enable it and paste the
+   Client ID + Client Secret from Google Cloud Console.
+2. **Supabase → Authentication → URL Configuration** — set *Site URL* to your
+   production origin and add *Redirect URLs* such as `http://localhost:8080/**`
+   and `https://your-domain/**`.
+3. **Google Cloud Console → Credentials → OAuth 2.0 Client** — add your origins
+   under *Authorized JavaScript origins*, and
+   `https://<project-ref>.supabase.co/auth/v1/callback` under
+   *Authorized redirect URIs*.
+
+Failures come back as a toast that says which of the above is missing.
+
 ---
 
 ## How it's put together

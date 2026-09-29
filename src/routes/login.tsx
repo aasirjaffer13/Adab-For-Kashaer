@@ -1,8 +1,8 @@
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
-import { lovable } from "@/integrations/lovable/index";
+import { oauthRedirectTo, signInWithGoogle } from "@/lib/oauth";
 import { safeRedirectSchema } from "@/lib/safe-redirect";
 import { signInSchema } from "@/lib/validation";
 import { toast } from "sonner";
@@ -32,6 +32,24 @@ function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
 
+  // The provider sends failures back here (?error=access_denied, ...).
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const message = params.get("error_description") ?? params.get("error");
+    if (!message) return;
+
+    toast.error(decodeURIComponent(message).replace(/\+/g, " "));
+
+    params.delete("error");
+    params.delete("error_description");
+    const query = params.toString();
+    window.history.replaceState(
+      null,
+      "",
+      window.location.pathname + (query ? `?${query}` : "") + window.location.hash,
+    );
+  }, []);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -58,13 +76,11 @@ function LoginPage() {
 
   const handleGoogle = async () => {
     setGoogleLoading(true);
-    const { error } = await lovable.auth.signInWithOAuth("google", {
-      redirect_uri:
-        window.location.origin + "/login?redirect=" + encodeURIComponent(search.redirect),
-    });
-    if (error) {
+    const message = await signInWithGoogle(oauthRedirectTo(search.redirect));
+    // On success the browser navigates to Google and this component unmounts.
+    if (message) {
       setGoogleLoading(false);
-      toast.error(error.message);
+      toast.error(message);
     }
   };
 

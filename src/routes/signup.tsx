@@ -2,7 +2,7 @@ import { createFileRoute, Link, redirect, useNavigate } from "@tanstack/react-ro
 import { useState } from "react";
 import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
-import { lovable } from "@/integrations/lovable/index";
+import { oauthRedirectTo, signInWithGoogle } from "@/lib/oauth";
 import { emailSchema, passwordSchema } from "@/lib/validation";
 import { toast } from "sonner";
 
@@ -60,12 +60,11 @@ function SignupPage() {
 
   const handleGoogle = async () => {
     setGoogleLoading(true);
-    const { error } = await lovable.auth.signInWithOAuth("google", {
-      redirect_uri: window.location.origin,
-    });
-    setGoogleLoading(false);
-    if (error) {
-      toast.error(error.message);
+    const message = await signInWithGoogle(oauthRedirectTo("/dashboard"));
+    // On success the browser navigates to Google and this component unmounts.
+    if (message) {
+      setGoogleLoading(false);
+      toast.error(message);
     }
   };
 

@@ -59,4 +59,23 @@ test.describe("sign-in page", () => {
       "true",
     );
   });
+
+  test("google sign-in goes through Supabase, not the Lovable broker", async ({
+    page,
+  }) => {
+    // Never hit the network: the point is which URL the button navigates to.
+    const authorize = page.waitForRequest((request) =>
+      request.url().includes("/auth/v1/authorize"),
+    );
+    await page.route("**/auth/v1/authorize**", (route) => route.abort());
+
+    await page.goto("/login");
+    await waitForHydration(page);
+    await page.getByRole("button", { name: "Continue with Google" }).click();
+
+    const request = await authorize;
+    expect(request.url()).toContain("provider=google");
+    expect(request.url()).toContain("redirect_to=");
+    expect(request.url()).toContain("prompt=select_account");
+  });
 });
