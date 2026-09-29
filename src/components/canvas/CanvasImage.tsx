@@ -1,4 +1,5 @@
 import { useRef, useEffect, useCallback } from "react";
+import type Konva from "konva";
 import { Image as KonvaImage, Transformer } from "react-konva";
 import useImage from "@/hooks/use-konva-image";
 
@@ -18,12 +19,12 @@ interface Props {
   isSelected: boolean;
   onSelect: () => void;
   onUpdate: (updates: Partial<BoardItem>) => void;
-  onContextMenu?: (e: any) => void;
+  onContextMenu?: (e: Konva.KonvaEventObject<PointerEvent>) => void;
 }
 
 export function CanvasImage({ item, isSelected, onSelect, onUpdate, onContextMenu }: Props) {
-  const imageRef = useRef<any>(null);
-  const trRef = useRef<any>(null);
+  const imageRef = useRef<Konva.Image | null>(null);
+  const trRef = useRef<Konva.Transformer | null>(null);
   const [image] = useImage(item.image_url || "", "anonymous");
 
   useEffect(() => {
@@ -34,7 +35,7 @@ export function CanvasImage({ item, isSelected, onSelect, onUpdate, onContextMen
   }, [isSelected]);
 
   const handleDragEnd = useCallback(
-    (e: any) => {
+    (e: Konva.KonvaEventObject<DragEvent>) => {
       onUpdate({
         x: e.target.x(),
         y: e.target.y(),

@@ -1,5 +1,13 @@
 import { useEffect, useRef } from "react";
 import { Copy, Download, ArrowUpToLine, ArrowDownToLine, Trash2 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+
+interface MenuAction {
+  label: string;
+  icon: LucideIcon;
+  action: () => void;
+  destructive?: boolean;
+}
 
 interface ContextMenuState {
   visible: boolean;
@@ -41,7 +49,7 @@ export function CanvasContextMenu({ menu, onClose, onDuplicate, onDownload, onBr
 
   const itemId = menu.itemId;
 
-  const actions = [
+  const actions: MenuAction[] = [
     { label: "Duplicate", icon: Copy, action: () => onDuplicate(itemId) },
     ...(menu.hasImageUrl
       ? [{ label: "Download", icon: Download, action: () => onDownload(itemId) }]
@@ -62,7 +70,7 @@ export function CanvasContextMenu({ menu, onClose, onDuplicate, onDownload, onBr
           key={i}
           onClick={() => { a.action(); onClose(); }}
           className={`flex w-full items-center gap-2 rounded-sm px-2.5 py-1.5 text-sm transition-colors ${
-            (a as any).destructive
+            a.destructive
               ? "text-destructive hover:bg-destructive/10"
               : "text-popover-foreground hover:bg-accent"
           }`}

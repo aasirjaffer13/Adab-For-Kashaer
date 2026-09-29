@@ -176,6 +176,53 @@ function devServerFnErrorLogger() {
   };
 }
 
+/**
+ * Group node_modules code into a handful of cacheable vendor chunks.
+ *
+ * Besides better long-term caching, this keeps every emitted chunk below
+ * 1 MiB: esbuild's transform API spills inputs larger than 1 MiB onto a temp
+ * file which it then has to delete, and that delete is flaky on Windows
+ * (antivirus holds the handle), failing the whole build with
+ * "Access is denied".
+ */
+function vendorChunk(id: string): string | undefined {
+  const normalized = id.replace(/\\/g, "/");
+  const marker = normalized.lastIndexOf("node_modules/");
+  if (marker < 0) return undefined;
+  const pkg = normalized.slice(marker + "node_modules/".length);
+
+  if (/^(react|react-dom|react-is|scheduler|object-assign)\//.test(pkg)) {
+    return "vendor-react";
+  }
+  if (pkg.startsWith("@tanstack/")) return "vendor-tanstack";
+  if (pkg.startsWith("@supabase/")) return "vendor-supabase";
+  if (/^(konva|react-konva)\//.test(pkg)) return "vendor-konva";
+  if (
+    /^(recharts|d3-\w+|victory-vendor|internmap|delaunator|robust-predicates|zrender|echarts)\//.test(
+      pkg,
+    )
+  ) {
+    return "vendor-charts";
+  }
+  if (
+    pkg.startsWith("@radix-ui/") ||
+    pkg.startsWith("@dnd-kit/") ||
+    /^(cmdk|vaul|embla-carousel-react|react-day-picker|react-resizable-panels|input-otp|colorthief)\//.test(
+      pkg,
+    )
+  ) {
+    return "vendor-ui";
+  }
+  if (pkg.startsWith("lucide-react/")) return "vendor-icons";
+  if (/^(framer-motion|motion-dom|motion-utils|popmotion)\//.test(pkg)) {
+    return "vendor-motion";
+  }
+  if (/^(zod|date-fns|clsx|tailwind-merge|class-variance-authority|sonner|react-hook-form)\//.test(pkg) || pkg.startsWith("@hookform/")) {
+    return "vendor-util";
+  }
+  return "vendor";
+}
+
 export default defineConfig({
   server: {
     host: "::",
@@ -185,6 +232,14 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+    },
+  },
+
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: vendorChunk,
+      },
     },
   },
 

@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from "react";
+import type Konva from "konva";
 import { Stage, Layer } from "react-konva";
 import { Link } from "@tanstack/react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -11,26 +12,11 @@ import { DotGrid } from "./DotGrid";
 import { FloatingDock } from "./FloatingDock";
 import { CanvasContextMenu } from "./CanvasContextMenu";
 import { AiPromptOverlay } from "./AiPromptOverlay";
+import type { BoardItem } from "./board-types";
+import type { TablesInsert, TablesUpdate } from "@/integrations/supabase/types";
+import type { Json } from "@/integrations/supabase/types";
 
-import { useUndoStack, type UndoAction } from "@/hooks/use-undo-stack";
-
-interface BoardItem {
-  id: string;
-  board_id: string;
-  type: string;
-  image_url: string | null;
-  source_url: string | null;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  rotation: number;
-  z_index: number;
-  notes: string | null;
-  tags: string[] | null;
-  metadata: any;
-  created_at: string;
-}
+import { useUndoStack } from "@/hooks/use-undo-stack";
 
 interface Board {
   id: string;
@@ -54,12 +40,12 @@ export function CanvasWorkspace({ board, items, onTitleChange }: Props) {
   const [tool, setTool] = useState<"select" | "upload" | "text">("select");
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleValue, setTitleValue] = useState(board.title);
-  const stageRef = useRef<any>(null);
+  const stageRef = useRef<Konva.Stage | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [stageSize, setStageSize] = useState({ width: 800, height: 600 });
   const queryClient = useQueryClient();
-  const { push: pushUndo, pop: popUndo } = useUndoStack();
+  const { push: pushUndo, pop: popUndo } = useUndoStack<BoardItem>();
   const clipboardRef = useRef<BoardItem | null>(null);
   const [aiPrompt, setAiPrompt] = useState<{ itemId: string | null } | null>(null);
 
@@ -110,12 +96,14 @@ export function CanvasWorkspace({ board, items, onTitleChange }: Props) {
   }, []);
 
 
-  const handleWheel = useCallback((e: any) => {
+  const handleWheel = useCallback((e: Konva.KonvaEventObject<WheelEvent>) => {
     e.evt.preventDefault();
     const scaleBy = 1.08;
     const stage = stageRef.current;
-    const oldScale = stage.scaleX();
+    if (!stage) return;
     const pointer = stage.getPointerPosition();
+    if (!pointer) return;
+    const oldScale = stage.scaleX();
     const mousePointTo = {
       x: (pointer.x - stage.x()) / oldScale,
       y: (pointer.y - stage.y()) / oldScale,
@@ -143,7 +131,7 @@ export function CanvasWorkspace({ board, items, onTitleChange }: Props) {
 
   // Add item (image or text)
   const addItem = useMutation({
-    mutationFn: async (item: { type?: string; image_url?: string; source_url?: string; width: number; height: number; x?: number; y?: number; metadata?: any }) => {
+    mutationFn: async (item: { type?: string; image_url?: string; source_url?: string; width: number; height: number; x?: number; y?: number; metadata?: Json }) => {
       const centerX = item.x ?? (-stagePos.x + stageSize.width / 2) / stageScale - item.width / 2;
       const centerY = item.y ?? (-stagePos.y + stageSize.height / 2) / stageScale - item.height / 2;
       const maxZ = items.length > 0 ? Math.max(...items.map((i) => i.z_index)) + 1 : 0;
@@ -232,7 +220,7 @@ export function CanvasWorkspace({ board, items, onTitleChange }: Props) {
 
 
   // Handle stage click — deselect or create text
-  const handleStageClick = (e: any) => {
+  const handleStageClick = (e: Konva.KonvaEventObject<Event>) => {
     if (contextMenu.visible) { setContextMenu((m) => ({ ...m, visible: false })); return; }
     if (isPanning) return;
     const isBackground = e.target === e.target.getStage() || e.target.attrs.name === "dot-grid";
@@ -240,7 +228,8 @@ export function CanvasWorkspace({ board, items, onTitleChange }: Props) {
 
     if (tool === "text") {
       const stage = stageRef.current;
-      const pointer = stage.getPointerPosition();
+      const pointer = stage?.getPointerPosition();
+      if (!pointer) return;
       const x = (pointer.x - stagePos.x) / stageScale;
       const y = (pointer.y - stagePos.y) / stageScale;
       addItem.mutate({
@@ -259,7 +248,7 @@ export function CanvasWorkspace({ board, items, onTitleChange }: Props) {
   };
 
   // Right-click context menu on items
-  const handleItemContextMenu = useCallback((e: any, item: BoardItem) => {
+  const handleItemContextMenu = useCallback((e: Konva.KonvaEventObject<PointerEvent>, item: BoardItem) => {
     e.evt.preventDefault();
     setSelectedId(item.id);
     setContextMenu({
@@ -325,9 +314,12 @@ export function CanvasWorkspace({ board, items, onTitleChange }: Props) {
       setSelectedId(null);
     } else if (action.type === "delete") {
       const { id, created_at, ...rest } = action.item;
-      await supabase.from("board_items").insert(rest as any);
+      await supabase.from("board_items").insert(rest as unknown as TablesInsert<"board_items">);
     } else if (action.type === "update") {
-      await supabase.from("board_items").update(action.prev as any).eq("id", action.itemId);
+      await supabase
+        .from("board_items")
+        .update(action.prev as unknown as TablesUpdate<"board_items">)
+        .eq("id", action.itemId);
     }
 
     queryClient.invalidateQueries({ queryKey: ["board-items", board.id] });
@@ -512,15 +504,15 @@ export function CanvasWorkspace({ board, items, onTitleChange }: Props) {
                   updateItem.mutate({ id: item.id, z_index: maxZ + 1 });
                 }
               },
-              onUpdate: (updates: Record<string, any>) => {
-                const prev: Record<string, any> = {};
+              onUpdate: (updates: Partial<BoardItem>) => {
+                const prev: Record<string, unknown> = {};
                 for (const key of Object.keys(updates)) {
-                  prev[key] = (item as any)[key];
+                  prev[key] = (item as unknown as Record<string, unknown>)[key];
                 }
                 pushUndo({ type: "update", itemId: item.id, prev });
                 updateItem.mutate({ id: item.id, ...updates });
               },
-              onContextMenu: (e: any) => handleItemContextMenu(e, item),
+              onContextMenu: (e: Konva.KonvaEventObject<PointerEvent>) => handleItemContextMenu(e, item),
             };
 
             if (item.type === "text") {

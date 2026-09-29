@@ -1,7 +1,8 @@
 import { Link } from "@tanstack/react-router";
-import { PenSquare, Moon, Sun, ArrowLeft } from "lucide-react";
+import { Moon, Sun, ArrowLeft } from "lucide-react";
 import { useTheme } from "@/hooks/use-theme";
 import { useAuth } from "@/hooks/use-auth";
+import { WriteReflectionLink } from "@/components/blog/WriteReflectionLink";
 
 interface Props {
   backTo?: "/blog" | "/";
@@ -53,14 +54,9 @@ export function BlogHeader({ backTo, backLabel, showWriteButton = true }: Props)
           </Link>
 
           {showWriteButton && (
-            <Link
-              to={isAuthenticated ? "/blog/new" : "/login"}
-              search={isAuthenticated ? undefined : { redirect: "/blog/new" }}
-              className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3.5 py-1.5 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
-            >
-              <PenSquare className="h-4 w-4" />
-              <span>Write a Reflection</span>
-            </Link>
+            <WriteReflectionLink className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3.5 py-1.5 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90">
+              Write a Reflection
+            </WriteReflectionLink>
           )}
 
           <button

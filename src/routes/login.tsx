@@ -1,54 +1,72 @@
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
-import { useState, useRef, useEffect, useMemo } from "react";
-import { Stage, Layer, Circle, Group } from "react-konva";
+import { useState } from "react";
+import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable/index";
+import { safeRedirectSchema } from "@/lib/safe-redirect";
+import { signInSchema } from "@/lib/validation";
 import { toast } from "sonner";
 
+const loginSearchSchema = z
+  .object({ redirect: safeRedirectSchema })
+  .passthrough();
+
 export const Route = createFileRoute("/login")({
-  validateSearch: (search) => ({
-    redirect: (search.redirect as string) || "/dashboard",
-  }),
+  validateSearch: loginSearchSchema,
   beforeLoad: ({ context, search }) => {
     if (context.auth.isAuthenticated) {
-      throw redirect({ to: search.redirect as any });
+      throw redirect({ href: search.redirect });
     }
   },
   component: LoginPage,
 });
 
+type FieldErrors = Partial<Record<"email" | "password", string>>;
+
 function LoginPage() {
   const search = Route.useSearch();
-  
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    const parsed = signInSchema.safeParse({ email, password });
+    if (!parsed.success) {
+      const issues = parsed.error.flatten().fieldErrors;
+      setFieldErrors({ email: issues.email?.[0], password: issues.password?.[0] });
+      return;
+    }
+    setFieldErrors({});
+
     setLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { error } = await supabase.auth.signInWithPassword(parsed.data);
     setLoading(false);
     if (error) {
-      toast.error(error.message);
+      toast.error(
+        error.message === "Invalid login credentials"
+          ? "Invalid email or password."
+          : error.message,
+      );
     }
     // Router will auto-redirect via beforeLoad once auth state updates
   };
 
   const handleGoogle = async () => {
     setGoogleLoading(true);
-    const redirectTo = (search.redirect as string) || "/dashboard";
     const { error } = await lovable.auth.signInWithOAuth("google", {
-      redirect_uri: window.location.origin + "/login?redirect=" + encodeURIComponent(redirectTo),
+      redirect_uri:
+        window.location.origin + "/login?redirect=" + encodeURIComponent(search.redirect),
     });
     if (error) {
       setGoogleLoading(false);
       toast.error(error.message);
     }
   };
-
-
 
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background px-4">
@@ -62,11 +80,12 @@ function LoginPage() {
         </div>
 
         <button
+          type="button"
           onClick={handleGoogle}
           disabled={googleLoading}
           className="mb-4 flex w-full items-center justify-center gap-2 rounded-md border border-border bg-card px-4 py-2.5 text-sm font-medium text-foreground shadow-sm transition-colors hover:bg-muted disabled:opacity-50"
         >
-          <svg className="h-4 w-4" viewBox="0 0 24 24">
+          <svg className="h-4 w-4" viewBox="0 0 24 24" aria-hidden="true">
             <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4" />
             <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
             <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
@@ -81,31 +100,48 @@ function LoginPage() {
           <div className="h-px flex-1 bg-border" />
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} noValidate className="space-y-4">
           <div>
             <label htmlFor="email" className="mb-1.5 block text-sm font-medium text-foreground">Email</label>
             <input
               id="email"
+              name="email"
               type="email"
+              autoComplete="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
+              aria-invalid={fieldErrors.email ? true : undefined}
+              aria-describedby={fieldErrors.email ? "email-error" : undefined}
               className="w-full rounded-md border border-input bg-card px-3 py-2 text-sm text-foreground shadow-sm outline-none placeholder:text-muted-foreground focus:border-primary focus:ring-1 focus:ring-ring"
               placeholder="you@example.com"
             />
+            {fieldErrors.email && (
+              <p id="email-error" role="alert" className="mt-1.5 text-xs text-destructive">
+                {fieldErrors.email}
+              </p>
+            )}
           </div>
           <div>
             <label htmlFor="password" className="mb-1.5 block text-sm font-medium text-foreground">Password</label>
             <input
               id="password"
+              name="password"
               type="password"
+              autoComplete="current-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              minLength={6}
+              aria-invalid={fieldErrors.password ? true : undefined}
+              aria-describedby={fieldErrors.password ? "password-error" : undefined}
               className="w-full rounded-md border border-input bg-card px-3 py-2 text-sm text-foreground shadow-sm outline-none placeholder:text-muted-foreground focus:border-primary focus:ring-1 focus:ring-ring"
               placeholder="••••••••"
             />
+            {fieldErrors.password && (
+              <p id="password-error" role="alert" className="mt-1.5 text-xs text-destructive">
+                {fieldErrors.password}
+              </p>
+            )}
           </div>
           <button
             type="submit"
@@ -125,44 +161,16 @@ function LoginPage() {
   );
 }
 
+/** CSS dot field — identical visual to the canvas grid, without shipping Konva. */
 function DotGridBg() {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [size, setSize] = useState({ width: 800, height: 600 });
-
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-    const ro = new ResizeObserver((entries) => {
-      const { width, height } = entries[0].contentRect;
-      setSize({ width, height });
-    });
-    ro.observe(el);
-    setSize({ width: el.clientWidth, height: el.clientHeight });
-    return () => ro.disconnect();
-  }, []);
-
-  const dots = useMemo(() => {
-    const spacing = 32;
-    const result: { x: number; y: number }[] = [];
-    for (let x = 0; x < size.width; x += spacing) {
-      for (let y = 0; y < size.height; y += spacing) {
-        result.push({ x, y });
-      }
-    }
-    return result;
-  }, [size.width, size.height]);
-
   return (
-    <div ref={containerRef} className="absolute inset-0">
-      <Stage width={size.width} height={size.height}>
-        <Layer>
-          <Group>
-            {dots.map((dot, i) => (
-              <Circle key={i} x={dot.x} y={dot.y} radius={1} fill="#c0c0c8" listening={false} />
-            ))}
-          </Group>
-        </Layer>
-      </Stage>
-    </div>
+    <div
+      aria-hidden="true"
+      className="pointer-events-none absolute inset-0"
+      style={{
+        backgroundImage: "radial-gradient(circle, var(--canvas-dot) 1px, transparent 1px)",
+        backgroundSize: "32px 32px",
+      }}
+    />
   );
 }

@@ -22,13 +22,23 @@ function BlogPostPage() {
     setIsLiked(getLikedPostIds().includes(blogId));
   }, [blogId]);
 
-  const { data: post, isLoading } = useQuery({
+  const {
+    data: post,
+    isLoading,
+    isError,
+    error,
+    refetch,
+  } = useQuery({
     queryKey: ["blog-post", blogId],
     queryFn: () => getBlogPostById(blogId),
+    retry: false,
   });
 
   const likeMutation = useMutation({
-    mutationFn: () => togglePostLike(blogId),
+    mutationFn: () => {
+      if (!post) throw new Error("This reflection is not loaded yet.");
+      return togglePostLike(post.id);
+    },
     onSuccess: (res) => {
       setIsLiked(res.isLiked);
       queryClient.invalidateQueries({ queryKey: ["blog-post", blogId] });
@@ -36,6 +46,9 @@ function BlogPostPage() {
       if (res.isLiked) {
         toast.success("Thank you for your appreciation!");
       }
+    },
+    onError: (err: unknown) => {
+      toast.error(err instanceof Error ? err.message : "Could not save your like.");
     },
   });
 
@@ -72,6 +85,35 @@ function BlogPostPage() {
             <div className="h-4 w-full animate-pulse rounded bg-muted" />
             <div className="h-4 w-5/6 animate-pulse rounded bg-muted" />
             <div className="h-4 w-4/6 animate-pulse rounded bg-muted" />
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="min-h-screen bg-background text-foreground">
+        <BlogHeader backTo="/blog" backLabel="All Reflections" />
+        <main className="mx-auto max-w-2xl px-6 py-24 text-center">
+          <h1 className="font-serif text-3xl font-medium">Could not load this reflection</h1>
+          <p className="mt-3 text-sm text-muted-foreground" role="alert">
+            {error instanceof Error ? error.message : "Something went wrong."}
+          </p>
+          <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+            <button
+              onClick={() => refetch()}
+              className="rounded-md border border-border px-4 py-2 text-sm font-semibold text-foreground hover:bg-muted"
+            >
+              Try again
+            </button>
+            <Link
+              to="/blog"
+              className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              <span>Back to all reflections</span>
+            </Link>
           </div>
         </main>
       </div>
@@ -141,12 +183,13 @@ function BlogPostPage() {
             <button
               onClick={() => likeMutation.mutate()}
               disabled={likeMutation.isPending}
+              aria-pressed={isLiked}
+              aria-label={isLiked ? "Remove your appreciation" : "Appreciate this reflection"}
               className={`inline-flex items-center gap-1.5 rounded-full border border-border px-3.5 py-1.5 text-xs font-semibold transition-colors ${
                 isLiked
                   ? "border-destructive/40 bg-destructive/10 text-destructive"
                   : "bg-card text-muted-foreground hover:bg-muted hover:text-foreground"
               }`}
-              title={isLiked ? "Unlike reflection" : "Like reflection"}
             >
               <Heart className={`h-3.5 w-3.5 ${isLiked ? "fill-destructive" : ""}`} />
               <span>{post.likes_count}</span>
@@ -211,6 +254,8 @@ function BlogPostPage() {
           <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
             <button
               onClick={() => likeMutation.mutate()}
+              disabled={likeMutation.isPending}
+              aria-pressed={isLiked}
               className={`inline-flex items-center gap-2 rounded-md px-5 py-2 text-sm font-semibold transition-colors ${
                 isLiked
                   ? "bg-destructive text-destructive-foreground hover:bg-destructive/90"

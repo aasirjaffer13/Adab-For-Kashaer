@@ -1,5 +1,8 @@
-import { useRef, useEffect, useCallback, useState } from "react";
+import { useRef, useEffect, useCallback, useMemo, useState } from "react";
+import type Konva from "konva";
 import { Text as KonvaText, Transformer } from "react-konva";
+import type { Json } from "@/integrations/supabase/types";
+import { readTextMetadata } from "./board-types";
 
 interface BoardItem {
   id: string;
@@ -9,7 +12,7 @@ interface BoardItem {
   height: number;
   rotation: number;
   z_index: number;
-  metadata: any;
+  metadata: Json | null;
 }
 
 interface Props {
@@ -17,21 +20,22 @@ interface Props {
   isSelected: boolean;
   onSelect: () => void;
   onUpdate: (updates: Partial<BoardItem>) => void;
-  onContextMenu?: (e: any) => void;
-  stageRef: React.RefObject<any>;
+  onContextMenu?: (e: Konva.KonvaEventObject<PointerEvent>) => void;
+  stageRef: React.RefObject<Konva.Stage | null>;
   stageScale: number;
   stagePos: { x: number; y: number };
 }
 
 const DEFAULT_FONT_SIZE = 18;
 
-export function CanvasText({ item, isSelected, onSelect, onUpdate, onContextMenu, stageRef, stageScale, stagePos }: Props) {
-  const textRef = useRef<any>(null);
-  const trRef = useRef<any>(null);
+export function CanvasText({ item, isSelected, onSelect, onUpdate, onContextMenu, stageRef }: Props) {
+  const textRef = useRef<Konva.Text | null>(null);
+  const trRef = useRef<Konva.Transformer | null>(null);
   const [textColor, setTextColor] = useState("#000000");
   const [isEditing, setIsEditing] = useState(false);
 
-  const fontSize = item.metadata?.fontSize ?? DEFAULT_FONT_SIZE;
+  const meta = useMemo(() => readTextMetadata(item.metadata), [item.metadata]);
+  const fontSize = meta.fontSize ?? DEFAULT_FONT_SIZE;
 
   // Theme-aware text color
   useEffect(() => {
@@ -53,7 +57,7 @@ export function CanvasText({ item, isSelected, onSelect, onUpdate, onContextMenu
   }, [isSelected, isEditing]);
 
   const handleDragEnd = useCallback(
-    (e: any) => {
+    (e: Konva.KonvaEventObject<DragEvent>) => {
       onUpdate({ x: e.target.x(), y: e.target.y() });
     },
     [onUpdate]
@@ -67,7 +71,7 @@ export function CanvasText({ item, isSelected, onSelect, onUpdate, onContextMenu
     const scaleY = node.scaleY();
     const avgScale = (scaleX + scaleY) / 2;
 
-    const currentFontSize = item.metadata?.fontSize ?? DEFAULT_FONT_SIZE;
+    const currentFontSize = meta.fontSize ?? DEFAULT_FONT_SIZE;
     const newFontSize = Math.max(8, Math.round(currentFontSize * avgScale));
     const newWidth = Math.max(20, node.width() * scaleX);
 
@@ -81,9 +85,9 @@ export function CanvasText({ item, isSelected, onSelect, onUpdate, onContextMenu
       y: node.y(),
       width: newWidth,
       rotation: node.rotation(),
-      metadata: { ...item.metadata, text: item.metadata?.text || "Text", fontSize: newFontSize },
+      metadata: { ...meta, text: meta.text || "Text", fontSize: newFontSize },
     });
-  }, [onUpdate, item.metadata]);
+  }, [onUpdate, meta]);
 
   const handleDblClick = useCallback(() => {
     setIsEditing(true);
@@ -102,7 +106,7 @@ export function CanvasText({ item, isSelected, onSelect, onUpdate, onContextMenu
     const textarea = document.createElement("textarea");
     document.body.appendChild(textarea);
 
-    textarea.value = item.metadata?.text || "Text";
+    textarea.value = meta.text || "Text";
     textarea.style.position = "fixed";
     textarea.style.top = `${container.top + aPos.y}px`;
     textarea.style.left = `${container.left + aPos.x}px`;
@@ -137,16 +141,16 @@ export function CanvasText({ item, isSelected, onSelect, onUpdate, onContextMenu
       if (trRef.current) trRef.current.show();
       node.getLayer()?.batchDraw();
       setIsEditing(false);
-      onUpdate({ metadata: { ...item.metadata, text: newText, fontSize } });
+      onUpdate({ metadata: { ...meta, text: newText, fontSize } });
     };
 
     textarea.addEventListener("blur", finish);
     textarea.addEventListener("keydown", (e) => {
       if (e.key === "Escape") textarea.blur();
     });
-  }, [item.metadata, fontSize, stageRef, textColor, onUpdate]);
+  }, [meta, fontSize, stageRef, textColor, onUpdate]);
 
-  const text = item.metadata?.text || "Text";
+  const text = meta.text || "Text";
 
   return (
     <>

@@ -1,8 +1,10 @@
 import { createFileRoute, useNavigate, Link, redirect } from "@tanstack/react-router";
 import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { createBlogPost } from "@/services/blog-service";
 import { BLOG_CATEGORIES } from "@/types/blog";
+import { blogDraftSchema, deriveExcerpt, parseTags } from "@/lib/validation";
 import { BlogHeader } from "@/components/blog/BlogHeader";
 import { BlogContent } from "@/components/blog/BlogContent";
 import { toast } from "sonner";
@@ -14,7 +16,6 @@ import {
   Quote,
   Heading2,
   List,
-  Sparkles,
 } from "lucide-react";
 
 export const Route = createFileRoute("/blog/new")({
@@ -37,6 +38,7 @@ export const Route = createFileRoute("/blog/new")({
 
 function NewBlogPage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { user } = useAuth();
 
   const [activeTab, setActiveTab] = useState<"write" | "preview">("write");
@@ -49,6 +51,9 @@ function NewBlogPage() {
   const [content, setContent] = useState("");
   const [tagsInput, setTagsInput] = useState("adab, reflection");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<
+    Partial<Record<"title" | "content" | "excerpt", string>>
+  >({});
 
   // Available categories without 'All'
   const categories = BLOG_CATEGORIES.filter((c) => c !== "All");
@@ -60,49 +65,51 @@ function NewBlogPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!title.trim()) {
-      toast.error("Please provide a title for your reflection");
-      return;
-    }
+    const parsed = blogDraftSchema.safeParse({
+      title,
+      authorName,
+      category,
+      excerpt,
+      content,
+      tagsInput,
+    });
 
-    if (!content.trim()) {
-      toast.error("Please write some content before publishing");
+    if (!parsed.success) {
+      const issues = parsed.error.flatten().fieldErrors;
+      setFieldErrors({
+        title: issues.title?.[0],
+        content: issues.content?.[0],
+        excerpt: issues.excerpt?.[0],
+      });
+      toast.error("Please fix the highlighted fields before submitting.");
       return;
     }
+    setFieldErrors({});
 
     setIsSubmitting(true);
     try {
-      const tags = tagsInput
-        .split(",")
-        .map((t) => t.trim().toLowerCase())
-        .filter(Boolean);
-
-      const generatedExcerpt =
-        excerpt.trim() ||
-        content
-          .replace(/^[#>*\d.-]+\s*/gm, "")
-          .slice(0, 160)
-          .trim() + "...";
-
       await createBlogPost({
-        title,
-        excerpt: generatedExcerpt,
-        content,
-        author_name: authorName.trim() || "Anonymous Contributor",
-        category,
-        tags,
+        title: parsed.data.title,
+        excerpt: parsed.data.excerpt || deriveExcerpt(parsed.data.content),
+        content: parsed.data.content,
+        author_name: parsed.data.authorName || "Anonymous Contributor",
+        category: parsed.data.category,
+        tags: parseTags(parsed.data.tagsInput),
       });
+
+      // The author lands on /blog straight away — clear the stale feed.
+      await queryClient.invalidateQueries({ queryKey: ["community-blogs"] });
+      await queryClient.invalidateQueries({ queryKey: ["admin-all-posts"] });
 
       toast.success(
         "Reflection submitted for review! Once approved by a moderator, it will appear publicly.",
         { duration: 6000 }
       );
-      navigate({
-        to: "/blog",
-      });
+      navigate({ to: "/blog" });
     } catch (err: unknown) {
-      console.error(err);
-      toast.error("Failed to submit reflection. Please try again.");
+      const message =
+        err instanceof Error ? err.message : "Failed to submit reflection.";
+      toast.error(message);
     } finally {
       setIsSubmitting(false);
     }
@@ -169,7 +176,7 @@ function NewBlogPage() {
         </div>
 
         {activeTab === "write" ? (
-          <form onSubmit={handleSubmit} className="mt-8 space-y-6">
+          <form onSubmit={handleSubmit} noValidate className="mt-8 space-y-6">
             {/* Title */}
             <div>
               <label
@@ -181,12 +188,18 @@ function NewBlogPage() {
               <input
                 id="title"
                 type="text"
-                required
                 placeholder="e.g. Guarding the Tongue in Group Chats"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
+                aria-invalid={fieldErrors.title ? true : undefined}
+                aria-describedby={fieldErrors.title ? "title-error" : undefined}
                 className="mt-2 w-full rounded-xl border border-input bg-card px-4 py-3 font-serif text-xl text-foreground placeholder:font-sans placeholder:text-base placeholder:text-muted-foreground outline-none focus:border-primary focus:ring-1 focus:ring-ring"
               />
+              {fieldErrors.title && (
+                <p id="title-error" role="alert" className="mt-1.5 text-xs text-destructive">
+                  {fieldErrors.title}
+                </p>
+              )}
             </div>
 
             {/* Author & Category Grid */}
@@ -247,8 +260,15 @@ function NewBlogPage() {
                 placeholder="A 1-2 sentence overview of your reflection..."
                 value={excerpt}
                 onChange={(e) => setExcerpt(e.target.value)}
+                aria-invalid={fieldErrors.excerpt ? true : undefined}
+                aria-describedby={fieldErrors.excerpt ? "excerpt-error" : undefined}
                 className="mt-2 w-full rounded-lg border border-input bg-card px-3.5 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-primary focus:ring-1 focus:ring-ring"
               />
+              {fieldErrors.excerpt && (
+                <p id="excerpt-error" role="alert" className="mt-1.5 text-xs text-destructive">
+                  {fieldErrors.excerpt}
+                </p>
+              )}
             </div>
 
             {/* Content Field with formatting toolbar */}
@@ -297,12 +317,22 @@ function NewBlogPage() {
               <textarea
                 id="content"
                 rows={15}
-                required
                 placeholder="Pour your thoughts here... You can use ## for headings, > for quotes, and 1. or - for lists."
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
+                aria-invalid={fieldErrors.content ? true : undefined}
+                aria-describedby={fieldErrors.content ? "content-error" : "content-hint"}
                 className="mt-2 w-full rounded-xl border border-input bg-card p-4 font-mono text-sm leading-relaxed text-foreground placeholder:font-sans placeholder:text-muted-foreground outline-none focus:border-primary focus:ring-1 focus:ring-ring"
               />
+              {fieldErrors.content ? (
+                <p id="content-error" role="alert" className="mt-1.5 text-xs text-destructive">
+                  {fieldErrors.content}
+                </p>
+              ) : (
+                <p id="content-hint" className="mt-1.5 text-xs text-muted-foreground">
+                  At least 40 characters.
+                </p>
+              )}
             </div>
 
             {/* Tags */}

@@ -27,6 +27,8 @@ import {
   useSensor,
   useSensors,
   type DragEndEvent,
+  type DraggableAttributes,
+  type DraggableSyntheticListeners,
 } from "@dnd-kit/core";
 import {
   SortableContext,
@@ -35,6 +37,10 @@ import {
   arrayMove,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import type { Tables } from "@/integrations/supabase/types";
+
+type BoardWithCount = Tables<"boards"> & { board_items: { count: number }[] };
+type DragHandleProps = DraggableAttributes & DraggableSyntheticListeners;
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
   component: Dashboard,
@@ -46,7 +52,13 @@ function Dashboard() {
   const { auth } = Route.useRouteContext();
   const { session } = useAuth();
 
-  const { data: boards, isLoading } = useQuery({
+  const {
+    data: boards,
+    isLoading,
+    isError,
+    error,
+    refetch,
+  } = useQuery({
     queryKey: ["boards"],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -89,6 +101,11 @@ function Dashboard() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["boards"] });
     },
+    onError: () => {
+      // Undo the optimistic write so the grid matches the server again.
+      queryClient.invalidateQueries({ queryKey: ["boards"] });
+      toast.error("Could not save the new board order.");
+    },
   });
 
   const handleDragEnd = useCallback(
@@ -122,6 +139,11 @@ function Dashboard() {
       queryClient.invalidateQueries({ queryKey: ["boards"] });
       navigate({ to: "/boards/$boardId", params: { boardId: data.id } });
     },
+    onError: (err: unknown) => {
+      toast.error(
+        err instanceof Error ? err.message : "Could not create a new board.",
+      );
+    },
   });
 
   const handleSignOut = async () => {
@@ -154,9 +176,11 @@ function Dashboard() {
             <ThemeToggle />
             <button
               onClick={handleSignOut}
+              aria-label="Sign out"
+              title="Sign out"
               className="inline-flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             >
-              <LogOut className="h-4 w-4" />
+              <LogOut className="h-4 w-4" aria-hidden="true" />
             </button>
           </div>
         </div>
@@ -168,6 +192,24 @@ function Dashboard() {
             {[...Array(3)].map((_, i) => (
               <div key={i} className="aspect-[4/3] animate-pulse rounded-md bg-muted" />
             ))}
+          </div>
+        ) : isError ? (
+          <div
+            role="alert"
+            className="rounded-xl border border-destructive/30 bg-destructive/5 px-6 py-16 text-center"
+          >
+            <p className="font-serif text-lg font-medium text-foreground">
+              Your boards could not be loaded
+            </p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {error instanceof Error ? error.message : "Something went wrong."}
+            </p>
+            <button
+              onClick={() => refetch()}
+              className="mt-4 rounded-md border border-border px-4 py-2 text-sm font-semibold text-foreground hover:bg-muted"
+            >
+              Try again
+            </button>
           </div>
         ) : !boards?.length ? (
           <EmptyState onCreate={() => createBoard.mutate()} isPending={createBoard.isPending} />
@@ -214,7 +256,7 @@ function EmptyState({ onCreate, isPending }: { onCreate: () => void; isPending: 
   );
 }
 
-function SortableBoardCard({ board, index }: { board: any; index: number }) {
+function SortableBoardCard({ board, index }: { board: BoardWithCount; index: number }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: board.id });
 
   const style = {
@@ -226,12 +268,24 @@ function SortableBoardCard({ board, index }: { board: any; index: number }) {
 
   return (
     <div ref={setNodeRef} style={style}>
-      <BoardCard board={board} index={index} dragHandleProps={{ ...attributes, ...listeners }} />
+      <BoardCard
+        board={board}
+        index={index}
+        dragHandleProps={{ ...attributes, ...listeners } as DragHandleProps}
+      />
     </div>
   );
 }
 
-function BoardCard({ board, index, dragHandleProps }: { board: any; index: number; dragHandleProps?: Record<string, any> }) {
+function BoardCard({
+  board,
+  index,
+  dragHandleProps,
+}: {
+  board: BoardWithCount;
+  index: number;
+  dragHandleProps?: DragHandleProps;
+}) {
   const itemCount = board.board_items?.[0]?.count ?? 0;
   const queryClient = useQueryClient();
   const [editingTitle, setEditingTitle] = useState(false);

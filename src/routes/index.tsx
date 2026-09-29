@@ -1,8 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
 import { ArrowRight, BookOpen, Check, Heart, MessageCircle, Shield, PenSquare, Sparkles } from "lucide-react";
-
-const ADMIN_SESSION_KEY = "adab_admin_authenticated";
+import { readAdminToken, subscribeToAdminSession } from "@/lib/admin-session";
 
 export const Route = createFileRoute("/")({
   component: LandingPage,
@@ -45,22 +44,20 @@ const SECTIONS = [
 
 function LandingPage() {
   const [scrolled, setScrolled] = useState(false);
-  const [isAdmin, setIsAdmin] = useState<boolean>(() => {
-    if (typeof window === "undefined") return false;
-    return sessionStorage.getItem(ADMIN_SESSION_KEY) === "true";
-  });
+  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8);
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
-    const onStorage = () => {
-      setIsAdmin(sessionStorage.getItem(ADMIN_SESSION_KEY) === "true");
-    };
-    window.addEventListener("storage", onStorage);
+
+    const syncAdmin = () => setIsAdmin(readAdminToken() !== null);
+    syncAdmin();
+    const unsubscribe = subscribeToAdminSession(syncAdmin);
+
     return () => {
       window.removeEventListener("scroll", onScroll);
-      window.removeEventListener("storage", onStorage);
+      unsubscribe();
     };
   }, []);
 
@@ -400,12 +397,12 @@ function LandingPage() {
                 Moderation
               </Link>
             )}
-            <a href="/dashboard" className="transition-colors hover:text-foreground">
+            <Link to="/dashboard" className="transition-colors hover:text-foreground">
               Open Inspo
-            </a>
-            <a href="/login" className="transition-colors hover:text-foreground">
+            </Link>
+            <Link to="/login" className="transition-colors hover:text-foreground">
               Sign in
-            </a>
+            </Link>
           </div>
         </div>
       </footer>

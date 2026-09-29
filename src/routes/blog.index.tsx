@@ -1,11 +1,11 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useAuth } from "@/hooks/use-auth";
 import { getBlogPosts, getLikedPostIds } from "@/services/blog-service";
 import { BLOG_CATEGORIES, type BlogPost } from "@/types/blog";
 import { BlogHeader } from "@/components/blog/BlogHeader";
-import { Search, Heart, Clock, ArrowRight, PenSquare, Tag, Sparkles } from "lucide-react";
+import { WriteReflectionLink } from "@/components/blog/WriteReflectionLink";
+import { Search, Heart, Clock, ArrowRight, Tag, Sparkles } from "lucide-react";
 import { format } from "date-fns";
 
 export const Route = createFileRoute("/blog/")({
@@ -23,7 +23,6 @@ export const Route = createFileRoute("/blog/")({
 });
 
 function BlogIndexPage() {
-  const { isAuthenticated } = useAuth();
   const [selectedCategory, setSelectedCategory] = useState<string>("All");
   const [searchQuery, setSearchQuery] = useState("");
   const [likedIds, setLikedIds] = useState<string[]>([]);
@@ -32,9 +31,16 @@ function BlogIndexPage() {
     setLikedIds(getLikedPostIds());
   }, []);
 
-  const { data: posts = [], isLoading } = useQuery({
+  const {
+    data: posts = [],
+    isLoading,
+    isError,
+    error,
+    refetch,
+  } = useQuery({
     queryKey: ["community-blogs"],
     queryFn: getBlogPosts,
+    retry: false,
   });
 
   const filteredPosts = useMemo(() => {
@@ -79,14 +85,7 @@ function BlogIndexPage() {
           </p>
 
           <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-            <Link
-              to={isAuthenticated ? "/blog/new" : "/login"}
-              search={isAuthenticated ? undefined : { redirect: "/blog/new" }}
-              className="inline-flex items-center gap-2 rounded-md bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
-            >
-              <PenSquare className="h-4 w-4" />
-              <span>Write your reflection</span>
-            </Link>
+            <WriteReflectionLink />
           </div>
         </section>
 
@@ -114,7 +113,8 @@ function BlogIndexPage() {
             <div className="relative w-full sm:w-72">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <input
-                type="text"
+                type="search"
+                aria-label="Search reflections"
                 placeholder="Search reflections..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -136,8 +136,29 @@ function BlogIndexPage() {
           </div>
         )}
 
+        {/* Load failure */}
+        {!isLoading && isError && (
+          <div
+            role="alert"
+            className="mt-10 rounded-2xl border border-destructive/30 bg-destructive/5 px-6 py-14 text-center"
+          >
+            <h3 className="font-serif text-xl font-medium text-foreground">
+              Reflections could not be loaded
+            </h3>
+            <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
+              {error instanceof Error ? error.message : "Something went wrong."}
+            </p>
+            <button
+              onClick={() => refetch()}
+              className="mt-5 rounded-md border border-border px-4 py-2 text-sm font-semibold text-foreground transition-colors hover:bg-muted"
+            >
+              Try again
+            </button>
+          </div>
+        )}
+
         {/* Featured Story */}
-        {!isLoading && featuredPost && (
+        {!isLoading && !isError && featuredPost && (
           <section className="mt-10">
             <Link
               to="/blog/$blogId"
@@ -201,7 +222,7 @@ function BlogIndexPage() {
         )}
 
         {/* Grid of Articles */}
-        {!isLoading && gridPosts.length > 0 && (
+        {!isLoading && !isError && gridPosts.length > 0 && (
           <section className="mt-10 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
             {gridPosts.map((post) => (
               <BlogCard
@@ -214,7 +235,7 @@ function BlogIndexPage() {
         )}
 
         {/* Empty State */}
-        {!isLoading && filteredPosts.length === 0 && (
+        {!isLoading && !isError && filteredPosts.length === 0 && (
           <div className="mt-16 rounded-2xl border border-dashed border-border py-20 text-center">
             <Tag className="mx-auto h-8 w-8 text-muted-foreground/60" />
             <h3 className="mt-4 font-serif text-xl font-medium text-foreground">
@@ -237,14 +258,9 @@ function BlogIndexPage() {
                   Reset filters
                 </button>
               )}
-              <Link
-                to={isAuthenticated ? "/blog/new" : "/login"}
-                search={isAuthenticated ? undefined : { redirect: "/blog/new" }}
-                className="inline-flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground shadow-sm hover:bg-primary/90"
-              >
-                <PenSquare className="h-3.5 w-3.5" />
-                <span>Write a reflection</span>
-              </Link>
+              <WriteReflectionLink className="inline-flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground shadow-sm hover:bg-primary/90">
+                Write a reflection
+              </WriteReflectionLink>
             </div>
           </div>
         )}
@@ -259,14 +275,7 @@ function BlogIndexPage() {
             behavior, guarding the tongue, and honoring modesty.
           </p>
           <div className="mt-6">
-            <Link
-              to={isAuthenticated ? "/blog/new" : "/login"}
-              search={isAuthenticated ? undefined : { redirect: "/blog/new" }}
-              className="inline-flex items-center gap-2 rounded-md bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
-            >
-              <PenSquare className="h-4 w-4" />
-              <span>Write your reflection</span>
-            </Link>
+            <WriteReflectionLink />
           </div>
         </section>
       </main>

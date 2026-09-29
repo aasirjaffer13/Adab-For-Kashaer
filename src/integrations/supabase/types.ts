@@ -112,12 +112,75 @@ export type Database = {
         }
         Relationships: []
       }
+      blogs: {
+        Row: {
+          admin_note: string | null
+          author_id: string | null
+          author_name: string
+          category: string
+          content: string
+          cover_image: string | null
+          created_at: string
+          excerpt: string
+          id: string
+          likes_count: number
+          read_time_minutes: number
+          slug: string
+          status: "pending" | "approved" | "rejected"
+          tags: string[]
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          admin_note?: string | null
+          author_id?: string | null
+          author_name?: string
+          category?: string
+          content: string
+          cover_image?: string | null
+          created_at?: string
+          excerpt: string
+          id?: string
+          likes_count?: number
+          read_time_minutes?: number
+          slug: string
+          status?: "pending" | "approved" | "rejected"
+          tags?: string[]
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          admin_note?: string | null
+          author_id?: string | null
+          author_name?: string
+          category?: string
+          content?: string
+          cover_image?: string | null
+          created_at?: string
+          excerpt?: string
+          id?: string
+          likes_count?: number
+          read_time_minutes?: number
+          slug?: string
+          status?: "pending" | "approved" | "rejected"
+          tags?: string[]
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      increment_blog_likes: {
+        Args: {
+          blog_id: string
+          amount: number
+        }
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never

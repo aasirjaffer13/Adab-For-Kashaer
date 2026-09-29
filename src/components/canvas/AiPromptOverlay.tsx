@@ -43,9 +43,11 @@ export function AiPromptOverlay({ boardId, position, referenceImageUrl, onGenera
         toast.success("Image generated!");
         onClose();
       }
-    } catch (err: any) {
-      console.error(err);
-      toast.error("Failed to generate image");
+    } catch (err: unknown) {
+      console.error("Image generation failed", err);
+      toast.error(
+        err instanceof Error && err.message ? err.message : "Failed to generate image",
+      );
     } finally {
       setLoading(false);
     }

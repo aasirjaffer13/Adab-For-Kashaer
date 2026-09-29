@@ -1,12 +1,18 @@
-import { createFileRoute, redirect, useSearch } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
+import { safeRedirectSchema, asAppPath } from "@/lib/safe-redirect";
+
+const confirmSearchSchema = z
+  .object({
+    code: z.string().default(""),
+    redirect: safeRedirectSchema,
+  })
+  .passthrough();
 
 export const Route = createFileRoute("/auth/confirm")({
-  validateSearch: (search) => ({
-    code: (search.code as string) || "",
-    redirect: (search.redirect as string) || "/dashboard",
-  }),
+  validateSearch: confirmSearchSchema,
   beforeLoad: ({ context }) => {
     if (context.auth.isAuthenticated) {
       throw redirect({ to: "/dashboard" });
@@ -36,7 +42,9 @@ function AuthConfirmPage() {
         return;
       }
 
-      window.location.href = redirectTo;
+      // `redirectTo` is validated to be an in-app path, so this can never
+      // navigate the browser to another origin.
+      window.location.assign(asAppPath(redirectTo));
     };
 
     exchangeCode();
@@ -46,7 +54,7 @@ function AuthConfirmPage() {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background px-4">
         <div className="w-full max-w-sm rounded-lg border border-border bg-card/90 p-8 text-center shadow-sm backdrop-blur-sm">
-          <p className="text-sm text-destructive">{error}</p>
+          <p role="alert" className="text-sm text-destructive">{error}</p>
           <a href="/login" className="mt-4 inline-block text-sm font-medium text-primary hover:underline">
             Back to Sign In
           </a>
@@ -58,7 +66,9 @@ function AuthConfirmPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="w-full max-w-sm rounded-lg border border-border bg-card/90 p-8 text-center shadow-sm backdrop-blur-sm">
-        <p className="text-sm text-muted-foreground">Confirming your account...</p>
+        <p className="text-sm text-muted-foreground" aria-live="polite">
+          {loading ? "Confirming your account…" : "Redirecting…"}
+        </p>
       </div>
     </div>
   );

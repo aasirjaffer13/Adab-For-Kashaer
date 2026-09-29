@@ -1,1 +1,5 @@
 project_id = "elwqshzxzzpmskopbsef"
+
+[db]
+# Applied by `supabase db reset` so a fresh local database is not empty.
+seed_sql = "seed.sql"
